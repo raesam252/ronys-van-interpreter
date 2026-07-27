@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#15558a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <title>Rony's Van Interpreter</title>
+  <style>
+    :root {
+      --azul:#15558a; --azul2:#0f4674; --verde:#18864b; --vermelho:#bd2c2c;
+      --fundo:#f3f6fa; --borda:#d7e0e9; --texto:#18212b; --cinza:#657180;
+      --branco:#fff;
+    }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html,body { margin:0; min-height:100%; font-family:Arial,Helvetica,sans-serif; background:var(--fundo); color:var(--texto); }
+    body { padding-bottom:env(safe-area-inset-bottom); }
+    main { max-width:760px; margin:auto; padding:14px; }
+    header { background:linear-gradient(160deg,var(--azul),var(--azul2)); color:#fff; border-radius:20px; padding:20px 16px; text-align:center; box-shadow:0 8px 24px rgba(15,70,116,.2); }
+    header h1 { margin:0 0 6px; font-size:25px; }
+    header p { margin:0; opacity:.92; }
+    #installArea { margin-top:12px; display:none; }
+    #installBtn { background:#fff; color:var(--azul); border:0; min-height:45px; padding:10px 16px; border-radius:12px; font-weight:bold; }
+    #status { margin:14px 0; padding:13px; min-height:50px; border:1px solid var(--borda); border-radius:13px; background:#fff; text-align:center; font-weight:bold; color:var(--cinza); }
+    #status.ouvindo { color:var(--vermelho); background:#fff1f1; border-color:#efb9b9; }
+    #status.processando { color:var(--azul); background:#eaf4ff; border-color:#b7d7f5; }
+    #status.sucesso { color:var(--verde); background:#eaf8f0; border-color:#b8e2ca; }
+    section { background:#fff; border:1px solid var(--borda); border-radius:18px; padding:15px; margin-bottom:15px; box-shadow:0 5px 16px rgba(0,0,0,.045); }
+    h2 { margin:0 0 8px; font-size:20px; }
+    .descricao { margin:0 0 13px; color:var(--cinza); line-height:1.4; }
+    label { display:block; margin:12px 0 6px; color:var(--cinza); font-size:12px; font-weight:bold; }
+    textarea { width:100%; min-height:95px; padding:12px; border:1px solid var(--borda); border-radius:12px; font-size:17px; line-height:1.42; resize:vertical; background:#fbfcfe; }
+    textarea:focus { outline:3px solid rgba(21,85,138,.11); border-color:var(--azul); }
+    .botoes { display:grid; grid-template-columns:1fr; gap:10px; margin-top:12px; }
+    .acoes { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+    button { min-height:58px; border:0; border-radius:13px; padding:12px; font-size:17px; font-weight:bold; cursor:pointer; }
+    button:active { transform:scale(.985); }
+    button:disabled { opacity:.5; }
+    .mic { background:var(--azul); color:#fff; }
+    .audio { background:var(--verde); color:#fff; }
+    .parar { background:#fff1f1; color:var(--vermelho); border:1px solid #efb9b9; }
+    .limpar { background:#fff; color:var(--cinza); border:1px solid var(--borda); }
+    .gravando { animation:pulsar 1s infinite; }
+    .aviso { font-size:12px; line-height:1.45; color:var(--cinza); text-align:center; padding:4px 8px 24px; }
+    @keyframes pulsar { 0%{box-shadow:0 0 0 0 rgba(189,44,44,.35)} 70%{box-shadow:0 0 0 14px rgba(189,44,44,0)} 100%{box-shadow:0 0 0 0 rgba(189,44,44,0)} }
+    @media(min-width:620px) { .botoes { grid-template-columns:1fr 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>🚐 Rony's Van Interpreter</h1>
+    <p>Intérprete de voz Português ↔ Inglês</p>
+    <div id="installArea">
+      <button id="installBtn">📲 Instalar no celular</button>
+    </div>
+  </header>
+
+  <div id="status">Pronto para iniciar</div>
+
+  <section>
+    <h2>🇧🇷 Você fala em português</h2>
+    <p class="descricao">Fale normalmente. A tradução será reproduzida automaticamente em inglês.</p>
+    <label>SUA MENSAGEM EM PORTUGUÊS</label>
+    <textarea id="textoPortugues" placeholder="Sua fala aparecerá aqui..."></textarea>
+    <label>TRADUÇÃO EM INGLÊS</label>
+    <textarea id="textoIngles" placeholder="A tradução aparecerá aqui..."></textarea>
+    <div class="botoes">
+      <button id="btnPt" class="mic" onclick="iniciar('pt-BR')">🎤 Falar em português</button>
+      <button class="audio" onclick="reproduzir('textoIngles','en-US')">🔊 Reproduzir em inglês</button>
+    </div>
+    <div class="acoes">
+      <button class="parar" onclick="pararTudo()">⏹ Parar</button>
+      <button class="limpar" onclick="limpar('pt')">🗑 Limpar</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>🇺🇸 O passageiro fala em inglês</h2>
+    <p class="descricao">O passageiro fala e a resposta será reproduzida automaticamente em português.</p>
+    <label>MENSAGEM DO PASSAGEIRO EM INGLÊS</label>
+    <textarea id="falaIngles" placeholder="A fala do passageiro aparecerá aqui..."></textarea>
+    <label>TRADUÇÃO EM PORTUGUÊS</label>
+    <textarea id="traducaoPortugues" placeholder="A tradução aparecerá aqui..."></textarea>
+    <div class="botoes">
+      <button id="btnEn" class="mic" onclick="iniciar('en-US')">🎤 Listen in English</button>
+      <button class="audio" onclick="reproduzir('traducaoPortugues','pt-BR')">🔊 Ouvir em português</button>
+    </div>
+    <div class="acoes">
+      <button class="parar" onclick="pararTudo()">⏹ Parar</button>
+      <button class="limpar" onclick="limpar('en')">🗑 Limpar</button>
+    </div>
+  </section>
+
+  <div class="aviso">
+    Para o microfone funcionar, abra o endereço no Google Chrome e permita o acesso quando solicitado.
+    A tela pode abrir mesmo sem internet, mas a tradução exige conexão.
+  </div>
+</main>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbxdk-FTnCJJrZwVlzFKmhS_WRJChnrZbd2rYdkmjMZimf9tS2CXdDJ0370CH-pyRdWG/exec';
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let reconhecimento = null;
+let contadorJsonp = 0;
+let installPrompt = null;
+
+function definirStatus(msg, classe='') {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = classe;
+}
+
+async function solicitarMicrofone() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+  stream.getTracks().forEach(track => track.stop());
+}
+
+async function iniciar(idioma) {
+  pararTudo();
+
+  if (!Recognition) {
+    definirStatus('Este navegador não oferece reconhecimento de voz. Use o Google Chrome.', 'ouvindo');
+    return;
+  }
+
+  try {
+    await solicitarMicrofone();
+  } catch (erro) {
+    definirStatus('O microfone não foi autorizado para este site.', 'ouvindo');
+    return;
+  }
+
+  reconhecimento = new Recognition();
+  reconhecimento.lang = idioma;
+  reconhecimento.continuous = false;
+  reconhecimento.interimResults = true;
+  reconhecimento.maxAlternatives = 1;
+
+  const botao = document.getElementById(idioma === 'pt-BR' ? 'btnPt' : 'btnEn');
+
+  reconhecimento.onstart = () => {
+    botao.classList.add('gravando');
+    definirStatus(idioma === 'pt-BR' ? '🎤 Ouvindo você em português...' : '🎤 Listening in English...', 'ouvindo');
+  };
+
+  reconhecimento.onresult = evento => {
+    let texto = '';
+    let finalizado = false;
+
+    for (let i = evento.resultIndex; i < evento.results.length; i++) {
+      texto += evento.results[i][0].transcript;
+      if (evento.results[i].isFinal) finalizado = true;
+    }
+
+    texto = texto.trim();
+
+    if (idioma === 'pt-BR') document.getElementById('textoPortugues').value = texto;
+    else document.getElementById('falaIngles').value = texto;
+
+    if (finalizado && texto) traduzir(texto, idioma);
+  };
+
+  reconhecimento.onerror = evento => {
+    botao.classList.remove('gravando');
+    const mensagens = {
+      'not-allowed':'O microfone foi bloqueado para este site.',
+      'no-speech':'Nenhuma fala foi identificada. Toque novamente.',
+      'network':'Falha de rede no reconhecimento de voz.',
+      'audio-capture':'O navegador não conseguiu acessar o microfone.'
+    };
+    definirStatus(mensagens[evento.error] || ('Erro no reconhecimento: ' + evento.error), 'ouvindo');
+  };
+
+  reconhecimento.onend = () => {
+    botao.classList.remove('gravando');
+    reconhecimento = null;
+  };
+
+  reconhecimento.start();
+}
+
+function traduzir(texto, idioma) {
+  definirStatus('Traduzindo...', 'processando');
+  const origem = idioma === 'pt-BR' ? 'pt' : 'en';
+  const destino = idioma === 'pt-BR' ? 'en' : 'pt';
+
+  jsonp({acao:'traduzir', texto, origem, destino})
+    .then(resultado => {
+      if (!resultado || !resultado.sucesso) throw new Error(resultado?.mensagem || 'Falha na tradução.');
+
+      if (idioma === 'pt-BR') {
+        document.getElementById('textoIngles').value = resultado.traducao;
+        definirStatus('Tradução concluída.', 'sucesso');
+        reproduzir('textoIngles','en-US');
+      } else {
+        document.getElementById('traducaoPortugues').value = resultado.traducao;
+        definirStatus('Tradução concluída.', 'sucesso');
+        reproduzir('traducaoPortugues','pt-BR');
+      }
+    })
+    .catch(erro => definirStatus('Erro: ' + erro.message, 'ouvindo'));
+}
+
+function jsonp(parametros) {
+  return new Promise((resolve, reject) => {
+    const nome = '__ronysCallback' + (++contadorJsonp);
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => finalizar(new Error('Tempo de resposta esgotado.')), 20000);
+
+    function limparJsonp() {
+      clearTimeout(timeout);
+      delete window[nome];
+      script.remove();
+    }
+
+    function finalizar(erro, dados) {
+      limparJsonp();
+      erro ? reject(erro) : resolve(dados);
+    }
+
+    window[nome] = dados => finalizar(null, dados);
+    script.onerror = () => finalizar(new Error('Não foi possível acessar o servidor de tradução.'));
+
+    const query = new URLSearchParams({...parametros, callback:nome});
+    script.src = API_URL + '?' + query.toString();
+    document.body.appendChild(script);
+  });
+}
+
+function reproduzir(idCampo, idioma) {
+  const texto = document.getElementById(idCampo).value.trim();
+
+  if (!texto) {
+    definirStatus('Não existe texto para reproduzir.', 'ouvindo');
+    return;
+  }
+
+  if (!('speechSynthesis' in window)) {
+    definirStatus('Este navegador não oferece reprodução de voz.', 'ouvindo');
+    return;
+  }
+
+  speechSynthesis.cancel();
+  const fala = new SpeechSynthesisUtterance(texto);
+  fala.lang = idioma;
+  fala.rate = 0.92;
+  fala.volume = 1;
+
+  const vozes = speechSynthesis.getVoices();
+  const prefixo = idioma.substring(0,2).toLowerCase();
+  const candidatas = vozes.filter(v => v.lang && v.lang.toLowerCase().startsWith(prefixo));
+  const vozGoogle = candidatas.find(v => v.name.toLowerCase().includes('google'));
+  if (vozGoogle || candidatas[0]) fala.voice = vozGoogle || candidatas[0];
+
+  fala.onstart = () => definirStatus(idioma === 'en-US' ? '🔊 Falando em inglês...' : '🔊 Falando em português...', 'processando');
+  fala.onend = () => definirStatus('Reprodução concluída.', 'sucesso');
+  fala.onerror = () => definirStatus('Não foi possível reproduzir o áudio.', 'ouvindo');
+
+  speechSynthesis.speak(fala);
+}
+
+function pararTudo() {
+  if (reconhecimento) {
+    try { reconhecimento.abort(); } catch (_) {}
+    reconhecimento = null;
+  }
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  document.querySelectorAll('.gravando').forEach(el => el.classList.remove('gravando'));
+}
+
+function limpar(tipo) {
+  pararTudo();
+  if (tipo === 'pt') {
+    document.getElementById('textoPortugues').value = '';
+    document.getElementById('textoIngles').value = '';
+  } else {
+    document.getElementById('falaIngles').value = '';
+    document.getElementById('traducaoPortugues').value = '';
+  }
+  definirStatus('Campos limpos.');
+}
+
+window.addEventListener('beforeinstallprompt', event => {
+  event.preventDefault();
+  installPrompt = event;
+  document.getElementById('installArea').style.display = 'block';
+});
+
+document.getElementById('installBtn').addEventListener('click', async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  document.getElementById('installArea').style.display = 'none';
+});
+
+window.addEventListener('appinstalled', () => {
+  definirStatus('Aplicativo instalado com sucesso.', 'sucesso');
+});
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+
+if ('speechSynthesis' in window) speechSynthesis.getVoices();
+</script>
+</body>
+</html>

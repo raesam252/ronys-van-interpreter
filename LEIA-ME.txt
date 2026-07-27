@@ -1,0 +1,29 @@
+RONY'S VAN INTERPRETER — PWA V3
+
+ARQUIVOS
+- index.html
+- manifest.webmanifest
+- sw.js
+- icon-192.png
+- icon-512.png
+
+PUBLICAÇÃO NO GITHUB PAGES
+
+1. Entre no repositório ronys-van-interpreter.
+2. Apague ou substitua o index.html antigo.
+3. Envie TODOS os 5 arquivos desta pasta para a raiz do repositório.
+4. Confirme em Settings > Pages:
+   Source: Deploy from a branch
+   Branch: main
+   Folder: /(root)
+5. Aguarde a publicação e abra o endereço fornecido pelo GitHub Pages.
+6. No Chrome, permita o microfone.
+7. Quando aparecer, toque em “Instalar no celular”.
+
+API CONFIGURADA
+https://script.google.com/macros/s/AKfycbxdk-FTnCJJrZwVlzFKmhS_WRJChnrZbd2rYdkmjMZimf9tS2CXdDJ0370CH-pyRdWG/exec
+
+IMPORTANTE
+- A interface pode abrir offline após a primeira visita.
+- A tradução precisa de internet para acessar o Apps Script.
+- Depois de atualizar arquivos no GitHub, o cache pode levar alguns segundos para atualizar.
