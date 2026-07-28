@@ -57,6 +57,12 @@
     .aviso { font-size:12px; color:var(--cinza); text-align:center; padding:3px 7px; }
     @keyframes pulsar { 0%{box-shadow:0 0 0 0 rgba(189,44,44,.35)} 70%{box-shadow:0 0 0 14px rgba(189,44,44,0)} 100%{box-shadow:0 0 0 0 rgba(189,44,44,0)} }
 
+
+    .retomar-card { margin-top:16px; padding:15px; border:1px solid #9fc6e6; border-radius:14px; background:#edf7ff; }
+    .retomar-card h3 { margin:0 0 6px; font-size:18px; color:var(--azul2); }
+    .retomar-card p { margin:0 0 12px; color:var(--cinza); line-height:1.4; }
+    .retomar-codigo { font-weight:700; letter-spacing:2px; color:var(--texto); }
+
     .modo-continuo { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border:1px solid var(--borda); border-radius:13px; background:#fbfcfe; margin-bottom:12px; }
     .modo-continuo strong { display:block; }
     .modo-continuo span { display:block; color:var(--cinza); font-size:12px; margin-top:3px; }
@@ -75,7 +81,7 @@
 <main>
   <header>
     <h1>🚐 Rony's Van Interpreter</h1>
-    <p>Português ↔ Inglês com conversação contínua</p>
+    <p>Português ↔ Inglês • sala permanente</p>
   </header>
 
   <div id="status">Pronto para iniciar</div>
@@ -91,6 +97,15 @@
       <input id="codigoEntrada" inputmode="numeric" maxlength="6" placeholder="123456">
       <button id="entrarBtn" class="verde" style="margin-top:10px">Entrar na conversa</button>
     </div>
+
+    <div id="retomarCard" class="retomar-card hidden">
+      <h3 id="retomarTitulo">Conversa anterior encontrada</h3>
+      <p id="retomarTexto">Deseja voltar para a conversa <span id="retomarCodigo" class="retomar-codigo"></span>?</p>
+      <div class="grid">
+        <button id="retomarBtn" class="verde">Voltar para a conversa</button>
+        <button id="descartarBtn" class="secundario">Não, iniciar outra</button>
+      </div>
+    </div>
   </section>
 
   <section id="sala" class="hidden">
@@ -98,7 +113,7 @@
     <div id="codigoSala" class="codigo"></div>
 
     <div id="convite" class="hidden">
-      <p class="descricao">Peça ao passageiro para escanear este QR Code com o próprio celular.</p>
+      <p class="descricao">Mantenha este QR Code disponível. O passageiro pode escaneá-lo novamente após desligar ou trocar de celular.</p>
       <div id="qrcode"></div>
       <div class="grid">
         <button id="compartilharBtn" class="verde">Compartilhar link</button>
@@ -106,7 +121,7 @@
       </div>
     </div>
 
-    <button id="sairBtn" class="perigo" style="margin-top:10px">Sair da conversa</button>
+    <button id="sairBtn" class="perigo" style="margin-top:10px">Encerrar conversa</button>
   </section>
 
   <section id="historico" class="hidden">
@@ -141,7 +156,7 @@
 
   <section>
     <div class="aviso">
-      Use o Google Chrome e permita o acesso ao microfone. A sala expira após algumas horas.
+      Use o Google Chrome e permita o microfone. A conversa permanece ativa até o motorista encerrá-la.
     </div>
   </section>
 </main>
@@ -165,8 +180,61 @@ let modoContinuo = false;
 let reinicioContinuo = null;
 let falandoAudio = false;
 let enviandoAutomatico = false;
+let tokenMotorista = "";
+
+const CHAVE_CONVERSA = "ronysVanConversaAtivaV6";
+const CHAVE_CONTINUO = "ronysVanModoContinuoV6";
 
 const el = id => document.getElementById(id);
+
+function salvarConversaAtiva() {
+  if (!salaAtual || !papelAtual) return;
+  localStorage.setItem(CHAVE_CONVERSA, JSON.stringify({
+    sala: salaAtual,
+    papel: papelAtual,
+    tokenMotorista: papelAtual === "motorista" ? tokenMotorista : "",
+    salvoEm: Date.now()
+  }));
+}
+
+function lerConversaAtiva() {
+  try {
+    const dados = JSON.parse(localStorage.getItem(CHAVE_CONVERSA) || "null");
+    if (!dados || !/^\d{6}$/.test(String(dados.sala || ""))) return null;
+    return {
+      sala: String(dados.sala),
+      papel: dados.papel === "motorista" ? "motorista" : "cliente",
+      tokenMotorista: String(dados.tokenMotorista || ""),
+      salvoEm: Number(dados.salvoEm || 0)
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function limparConversaAtiva() {
+  localStorage.removeItem(CHAVE_CONVERSA);
+}
+
+function mostrarOpcaoRetomar() {
+  const conversa = lerConversaAtiva();
+  if (!conversa) return;
+
+  el("retomarCodigo").textContent = conversa.sala;
+  el("retomarCard").dataset.sala = conversa.sala;
+  el("retomarCard").dataset.papel = conversa.papel;
+
+  const motorista = conversa.papel === "motorista";
+  el("retomarTitulo").textContent = motorista
+    ? "Conversa anterior encontrada"
+    : "Previous conversation found";
+  el("retomarTexto").innerHTML = motorista
+    ? `Deseja voltar para a conversa <span class="retomar-codigo">${conversa.sala}</span>?`
+    : `Would you like to return to conversation <span class="retomar-codigo">${conversa.sala}</span>?`;
+  el("retomarBtn").textContent = motorista ? "Voltar para a conversa" : "Return to conversation";
+  el("descartarBtn").textContent = motorista ? "Não, iniciar outra" : "No, start another";
+  el("retomarCard").classList.remove("hidden");
+}
 
 function definirStatus(texto, classe="") {
   el("status").textContent = texto;
@@ -207,7 +275,9 @@ async function criarSala() {
 
     salaAtual = r.sala;
     papelAtual = "motorista";
+    tokenMotorista = String(r.tokenMotorista || "");
     history.replaceState(null, "", location.pathname + "?sala=" + salaAtual + "&papel=motorista");
+    salvarConversaAtiva();
     abrirSala();
     definirStatus("Conversa criada. Mostre o QR Code ao passageiro.", "sucesso");
   } catch (erro) {
@@ -215,7 +285,7 @@ async function criarSala() {
   }
 }
 
-async function entrarSala(codigo, papel="cliente") {
+async function entrarSala(codigo, papel="cliente", tokenSalvo="") {
   const sala = String(codigo || "").replace(/\D/g, "").slice(0,6);
   if (sala.length !== 6) {
     definirStatus("Digite os 6 números da conversa.", "erro");
@@ -230,11 +300,18 @@ async function entrarSala(codigo, papel="cliente") {
 
     salaAtual = sala;
     papelAtual = papel === "motorista" ? "motorista" : "cliente";
+    tokenMotorista = papelAtual === "motorista" ? String(tokenSalvo || "") : "";
     history.replaceState(null, "", location.pathname + "?sala=" + salaAtual + "&papel=" + papelAtual);
+    salvarConversaAtiva();
     abrirSala();
     definirStatus(papelAtual === "motorista" ? "Modo motorista ativo." : "Connected. You may speak in English.", "sucesso");
   } catch (erro) {
-    definirStatus(erro.message, "erro");
+    const salva = lerConversaAtiva();
+    if (salva && salva.sala === sala) {
+      limparConversaAtiva();
+      el("retomarCard").classList.add("hidden");
+    }
+    definirStatus(erro.message + " A conversa anterior foi removida deste aparelho.", "erro");
   }
 }
 
@@ -257,9 +334,15 @@ function abrirSala() {
     ? "Ative uma vez e fale normalmente. O envio será automático."
     : "Turn it on once and speak naturally. Messages will be sent automatically.";
   el("convite").classList.toggle("hidden", !motorista);
+  el("sairBtn").textContent = motorista ? "🛑 Encerrar conversa para todos" : "Sair deste aparelho";
+  el("sairBtn").className = motorista ? "perigo" : "secundario";
 
   if (motorista) montarConvite();
   iniciarBusca();
+
+  if (localStorage.getItem(CHAVE_CONTINUO) === "1") {
+    setTimeout(() => atualizarModoContinuo(true), 500);
+  }
 }
 
 function montarConvite() {
@@ -310,7 +393,8 @@ async function enviarMensagem(automatico=false) {
       texto,
       traducao:tr.traducao,
       origem,
-      destino
+      destino,
+      tokenMotorista: papelAtual === "motorista" ? tokenMotorista : ""
     });
 
     if (!envio.sucesso) throw new Error(envio.mensagem || "Falha ao enviar.");
@@ -332,6 +416,7 @@ async function enviarMensagem(automatico=false) {
 
 function atualizarModoContinuo(ativo) {
   modoContinuo = Boolean(ativo);
+  localStorage.setItem(CHAVE_CONTINUO, modoContinuo ? "1" : "0");
   el("continuoToggle").checked = modoContinuo;
   el("modoContinuoBox").classList.toggle("continuo-ativo", modoContinuo);
 
@@ -383,8 +468,18 @@ async function buscarMensagens() {
   if (!salaAtual) return;
 
   try {
-    const r = await jsonp({acao:"buscar", sala:salaAtual, depois:ultimoId});
-    if (!r.sucesso) throw new Error(r.mensagem || "Falha ao atualizar.");
+    const r = await jsonp({acao:"buscar", sala:salaAtual, depois:ultimoId, papel:papelAtual});
+    if (!r.sucesso) {
+      if (r.encerrada) {
+        encerrarLocalmente(
+          papelAtual === "motorista"
+            ? "Conversa encerrada."
+            : "The driver ended this conversation."
+        );
+        return;
+      }
+      throw new Error(r.mensagem || "Falha ao atualizar.");
+    }
 
     for (const mensagem of (r.mensagens || [])) {
       mostrarMensagem(mensagem);
@@ -564,15 +659,57 @@ function reproduzir(texto, idioma) {
   speechSynthesis.speak(fala);
 }
 
-function sair() {
-  atualizarModoContinuo(false);
+function encerrarLocalmente(mensagem="") {
+  modoContinuo = false;
+  clearTimeout(reinicioContinuo);
   pararBusca();
+
   if (reconhecimento) {
     try { reconhecimento.abort(); } catch (_) {}
   }
   if ("speechSynthesis" in window) speechSynthesis.cancel();
+
+  limparConversaAtiva();
+  localStorage.removeItem(CHAVE_CONTINUO);
+  salaAtual = "";
+  papelAtual = "";
+  tokenMotorista = "";
+  ultimoId = 0;
   history.replaceState(null, "", location.pathname);
-  location.reload();
+
+  el("sala").classList.add("hidden");
+  el("historico").classList.add("hidden");
+  el("fala").classList.add("hidden");
+  el("inicio").classList.remove("hidden");
+  el("mensagens").innerHTML = "";
+  el("retomarCard").classList.add("hidden");
+  definirStatus(mensagem || "Você saiu da conversa.", "sucesso");
+}
+
+async function sair() {
+  if (papelAtual !== "motorista") {
+    encerrarLocalmente("You left the conversation on this device.");
+    return;
+  }
+
+  const confirmou = confirm(
+    "Encerrar esta conversa para todos?\n\nO passageiro não poderá voltar usando este QR Code."
+  );
+  if (!confirmou) return;
+
+  definirStatus("Encerrando conversa...", "processando");
+
+  try {
+    const r = await jsonp({
+      acao: "encerrarSala",
+      sala: salaAtual,
+      tokenMotorista
+    });
+    if (!r.sucesso) throw new Error(r.mensagem || "Não foi possível encerrar.");
+    encerrarLocalmente("Conversa encerrada para todos.", "sucesso");
+  } catch (erro) {
+    definirStatus(erro.message, "erro");
+  }
 }
 
 el("criarBtn").addEventListener("click", criarSala);
@@ -581,6 +718,23 @@ el("entrarBtn").addEventListener("click", () => entrarSala(el("codigoEntrada").v
 el("micBtn").addEventListener("click", alternarMicrofone);
 el("enviarBtn").addEventListener("click", () => enviarMensagem(false));
 el("continuoToggle").addEventListener("change", event => atualizarModoContinuo(event.target.checked));
+
+el("retomarBtn").addEventListener("click", () => {
+  const sala = el("retomarCard").dataset.sala;
+  const papel = el("retomarCard").dataset.papel;
+  if (sala) {
+    const conversa = lerConversaAtiva();
+    entrarSala(sala, papel, conversa ? conversa.tokenMotorista : "");
+  }
+});
+
+el("descartarBtn").addEventListener("click", () => {
+  limparConversaAtiva();
+  localStorage.removeItem(CHAVE_CONTINUO);
+  el("retomarCard").classList.add("hidden");
+  definirStatus("Conversa anterior descartada. Você pode iniciar uma nova.");
+});
+
 el("repetirBtn").addEventListener("click", () => {
   if (ultimaTraducao) reproduzir(ultimaTraducao, ultimoIdiomaTraducao);
 });
@@ -620,7 +774,16 @@ if ("speechSynthesis" in window) {
 const inicial = new URLSearchParams(location.search);
 const salaInicial = inicial.get("sala");
 const papelInicial = inicial.get("papel") === "motorista" ? "motorista" : "cliente";
-if (salaInicial) entrarSala(salaInicial, papelInicial);
+
+if (salaInicial) {
+  const salva = lerConversaAtiva();
+  const token = salva && salva.sala === salaInicial && salva.papel === "motorista"
+    ? salva.tokenMotorista
+    : "";
+  entrarSala(salaInicial, papelInicial, token);
+} else {
+  mostrarOpcaoRetomar();
+}
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
