@@ -56,6 +56,18 @@
     .mic.ouvindo { background:var(--vermelho); animation:pulsar 1s infinite; }
     .aviso { font-size:12px; color:var(--cinza); text-align:center; padding:3px 7px; }
     @keyframes pulsar { 0%{box-shadow:0 0 0 0 rgba(189,44,44,.35)} 70%{box-shadow:0 0 0 14px rgba(189,44,44,0)} 100%{box-shadow:0 0 0 0 rgba(189,44,44,0)} }
+
+    .modo-continuo { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border:1px solid var(--borda); border-radius:13px; background:#fbfcfe; margin-bottom:12px; }
+    .modo-continuo strong { display:block; }
+    .modo-continuo span { display:block; color:var(--cinza); font-size:12px; margin-top:3px; }
+    .switch { position:relative; width:58px; min-width:58px; height:32px; }
+    .switch input { position:absolute; opacity:0; pointer-events:none; }
+    .switch i { position:absolute; inset:0; border-radius:999px; background:#b7c0ca; transition:.2s; }
+    .switch i::after { content:""; position:absolute; width:26px; height:26px; left:3px; top:3px; border-radius:50%; background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.25); transition:.2s; }
+    .switch input:checked + i { background:var(--verde); }
+    .switch input:checked + i::after { transform:translateX(26px); }
+    .continuo-ativo { border-color:#93d4ad; background:#f0fbf5; }
+
     @media(max-width:560px) { .grid { grid-template-columns:1fr; } }
   </style>
 </head>
@@ -63,7 +75,7 @@
 <main>
   <header>
     <h1>🚐 Rony's Van Interpreter</h1>
-    <p>Português ↔ Inglês em dois celulares</p>
+    <p>Português ↔ Inglês com conversação contínua</p>
   </header>
 
   <div id="status">Pronto para iniciar</div>
@@ -104,6 +116,18 @@
 
   <section id="fala" class="hidden">
     <h2 id="tituloFala">Fale</h2>
+
+    <div id="modoContinuoBox" class="modo-continuo">
+      <div>
+        <strong id="tituloContinuo">Modo conversação contínua</strong>
+        <span id="descricaoContinuo">Depois de ativado, basta falar. O aplicativo envia automaticamente.</span>
+      </div>
+      <label class="switch" aria-label="Ativar modo conversação contínua">
+        <input id="continuoToggle" type="checkbox">
+        <i></i>
+      </label>
+    </div>
+
     <button id="micBtn" class="primario mic">🎤 Toque e fale</button>
 
     <label id="rotuloTexto">TEXTO RECONHECIDO</label>
@@ -137,6 +161,10 @@ let ultimaTraducao = "";
 let ultimoIdiomaTraducao = "en-US";
 let contadorJsonp = 0;
 let vozes = [];
+let modoContinuo = false;
+let reinicioContinuo = null;
+let falandoAudio = false;
+let enviandoAutomatico = false;
 
 const el = id => document.getElementById(id);
 
@@ -224,6 +252,10 @@ function abrirSala() {
   el("textoReconhecido").placeholder = motorista ? "Sua fala em português aparecerá aqui..." : "Your English speech will appear here...";
   el("micBtn").textContent = motorista ? "🎤 Toque e fale em português" : "🎤 Tap and speak in English";
   el("enviarBtn").textContent = motorista ? "Traduzir para inglês e enviar" : "Translate to Portuguese and send";
+  el("tituloContinuo").textContent = motorista ? "Modo conversação contínua" : "Continuous conversation mode";
+  el("descricaoContinuo").textContent = motorista
+    ? "Ative uma vez e fale normalmente. O envio será automático."
+    : "Turn it on once and speak naturally. Messages will be sent automatically.";
   el("convite").classList.toggle("hidden", !motorista);
 
   if (motorista) montarConvite();
@@ -251,12 +283,15 @@ function montarConvite() {
   el("copiarBtn").dataset.link = link;
 }
 
-async function enviarMensagem() {
+async function enviarMensagem(automatico=false) {
   const texto = el("textoReconhecido").value.trim();
   if (!texto) {
-    definirStatus(papelAtual === "motorista" ? "Fale ou digite uma mensagem." : "Speak or type a message.", "erro");
+    if (!automatico) definirStatus(papelAtual === "motorista" ? "Fale ou digite uma mensagem." : "Speak or type a message.", "erro");
     return;
   }
+
+  if (enviandoAutomatico) return;
+  if (automatico) enviandoAutomatico = true;
 
   const origem = papelAtual === "motorista" ? "pt" : "en";
   const destino = papelAtual === "motorista" ? "en" : "pt";
@@ -289,7 +324,48 @@ async function enviarMensagem() {
     definirStatus(erro.message, "erro");
   } finally {
     el("enviarBtn").disabled = false;
+    enviandoAutomatico = false;
+    if (modoContinuo) agendarEscutaContinua(900);
   }
+}
+
+
+function atualizarModoContinuo(ativo) {
+  modoContinuo = Boolean(ativo);
+  el("continuoToggle").checked = modoContinuo;
+  el("modoContinuoBox").classList.toggle("continuo-ativo", modoContinuo);
+
+  if (modoContinuo) {
+    definirStatus(
+      papelAtual === "motorista"
+        ? "Modo contínuo ativo. Fale quando estiver pronto."
+        : "Continuous mode active. Speak when ready.",
+      "sucesso"
+    );
+    agendarEscutaContinua(500);
+  } else {
+    clearTimeout(reinicioContinuo);
+    reinicioContinuo = null;
+    if (reconhecimento) {
+      try { reconhecimento.abort(); } catch (_) {}
+    }
+    definirStatus(
+      papelAtual === "motorista"
+        ? "Modo contínuo desativado."
+        : "Continuous mode is off."
+    );
+  }
+}
+
+function agendarEscutaContinua(atraso=600) {
+  clearTimeout(reinicioContinuo);
+  if (!modoContinuo || falandoAudio || reconhecimento || enviandoAutomatico || !salaAtual) return;
+
+  reinicioContinuo = setTimeout(() => {
+    if (modoContinuo && !falandoAudio && !reconhecimento && !enviandoAutomatico) {
+      alternarMicrofone(true);
+    }
+  }, atraso);
 }
 
 function iniciarBusca() {
@@ -315,6 +391,9 @@ async function buscarMensagens() {
       ultimoId = Math.max(ultimoId, Number(mensagem.id || 0));
 
       if (mensagem.papel !== papelAtual) {
+        if (reconhecimento) {
+          try { reconhecimento.abort(); } catch (_) {}
+        }
         const textoFalado = mensagem.traducao || mensagem.texto;
         const idioma = mensagem.destino === "pt" ? "pt-BR" : "en-US";
         ultimaTraducao = textoFalado;
@@ -358,14 +437,19 @@ async function solicitarMicrofone() {
   stream.getTracks().forEach(track => track.stop());
 }
 
-async function alternarMicrofone() {
+async function alternarMicrofone(automatico=false) {
   if (!Recognition) {
     definirStatus("Use o Google Chrome para reconhecimento de voz.", "erro");
     return;
   }
 
   if (ouvindo && reconhecimento) {
-    reconhecimento.stop();
+    if (!automatico) reconhecimento.stop();
+    return;
+  }
+
+  if (falandoAudio || enviandoAutomatico) {
+    if (modoContinuo) agendarEscutaContinua(700);
     return;
   }
 
@@ -379,7 +463,7 @@ async function alternarMicrofone() {
   reconhecimento = new Recognition();
   reconhecimento.lang = papelAtual === "motorista" ? "pt-BR" : "en-US";
   reconhecimento.continuous = false;
-  reconhecimento.interimResults = true;
+  reconhecimento.interimResults = modoContinuo ? false : true;
   reconhecimento.maxAlternatives = 1;
 
   reconhecimento.onstart = () => {
@@ -391,13 +475,30 @@ async function alternarMicrofone() {
 
   reconhecimento.onresult = evento => {
     let texto = "";
+    let finalizado = false;
+
     for (let i = evento.resultIndex; i < evento.results.length; i++) {
       texto += evento.results[i][0].transcript;
+      if (evento.results[i].isFinal) finalizado = true;
     }
-    el("textoReconhecido").value = texto.trim();
+
+    texto = texto.trim();
+    el("textoReconhecido").value = texto;
+
+    if (modoContinuo && finalizado && texto) {
+      setTimeout(() => enviarMensagem(true), 120);
+    }
   };
 
   reconhecimento.onerror = evento => {
+    if (modoContinuo && evento.error === "no-speech") {
+      definirStatus(
+        papelAtual === "motorista" ? "Aguardando você falar..." : "Waiting for you to speak...",
+        "processando"
+      );
+      return;
+    }
+
     const mensagens = {
       "not-allowed":"O microfone foi bloqueado.",
       "no-speech":"Nenhuma fala foi detectada.",
@@ -412,6 +513,7 @@ async function alternarMicrofone() {
     el("micBtn").classList.remove("ouvindo");
     el("micBtn").textContent = papelAtual === "motorista" ? "🎤 Toque e fale em português" : "🎤 Tap and speak in English";
     reconhecimento = null;
+    if (modoContinuo && !enviandoAutomatico && !falandoAudio) agendarEscutaContinua(650);
   };
 
   reconhecimento.start();
@@ -445,10 +547,25 @@ function reproduzir(texto, idioma) {
   const voz = escolherVoz(idioma);
   if (voz) fala.voice = voz;
 
+  fala.onstart = () => {
+    falandoAudio = true;
+    if (reconhecimento) {
+      try { reconhecimento.abort(); } catch (_) {}
+    }
+  };
+
+  const finalizarAudio = () => {
+    falandoAudio = false;
+    if (modoContinuo) agendarEscutaContinua(700);
+  };
+
+  fala.onend = finalizarAudio;
+  fala.onerror = finalizarAudio;
   speechSynthesis.speak(fala);
 }
 
 function sair() {
+  atualizarModoContinuo(false);
   pararBusca();
   if (reconhecimento) {
     try { reconhecimento.abort(); } catch (_) {}
@@ -462,7 +579,8 @@ el("criarBtn").addEventListener("click", criarSala);
 el("mostrarEntradaBtn").addEventListener("click", () => el("entradaBox").classList.toggle("hidden"));
 el("entrarBtn").addEventListener("click", () => entrarSala(el("codigoEntrada").value, "cliente"));
 el("micBtn").addEventListener("click", alternarMicrofone);
-el("enviarBtn").addEventListener("click", enviarMensagem);
+el("enviarBtn").addEventListener("click", () => enviarMensagem(false));
+el("continuoToggle").addEventListener("change", event => atualizarModoContinuo(event.target.checked));
 el("repetirBtn").addEventListener("click", () => {
   if (ultimaTraducao) reproduzir(ultimaTraducao, ultimoIdiomaTraducao);
 });
