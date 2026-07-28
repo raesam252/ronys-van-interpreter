@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ronys-van-interpreter-v5-0';
+const CACHE_NAME = 'ronys-van-interpreter-v6-0';
 const APP_SHELL = [
   './',
   './index.html',
