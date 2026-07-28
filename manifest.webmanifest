@@ -1,7 +1,7 @@
 {
   "name": "Rony's Van Interpreter",
   "short_name": "Van Interpreter",
-  "description": "Intérprete de voz com sala permanente, reconexão e QR Code reutilizável até o motorista encerrar.",
+  "description": "Intérprete em dois celulares: cada pessoa fala no próprio idioma e somente o outro aparelho reproduz a tradução.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
