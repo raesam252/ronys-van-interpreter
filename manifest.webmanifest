@@ -1,7 +1,7 @@
 {
   "name": "Rony's Van Interpreter",
   "short_name": "Van Interpreter",
-  "description": "Intérprete de voz Português e Inglês para motorista e passageiro.",
+  "description": "Intérprete de voz Português e Inglês com conversação contínua para motorista e passageiro.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
