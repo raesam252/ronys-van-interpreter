@@ -81,7 +81,7 @@
 <main>
   <header>
     <h1>🚐 Rony's Van Interpreter</h1>
-    <p>Português ↔ Inglês • sala permanente</p>
+    <p>Português ↔ Inglês • áudio somente no aparelho receptor</p>
   </header>
 
   <div id="status">Pronto para iniciar</div>
@@ -131,6 +131,9 @@
 
   <section id="fala" class="hidden">
     <h2 id="tituloFala">Fale</h2>
+    <div id="avisoAudio" class="aviso" style="margin-bottom:10px">
+      Sua própria tradução não será reproduzida neste aparelho.
+    </div>
 
     <div id="modoContinuoBox" class="modo-continuo">
       <div>
@@ -150,7 +153,7 @@
 
     <div class="grid" style="margin-top:10px">
       <button id="enviarBtn" class="verde">Traduzir e enviar</button>
-      <button id="repetirBtn" class="secundario">🔊 Repetir tradução</button>
+      <button id="repetirBtn" class="secundario">🔊 Repetir última tradução recebida</button>
     </div>
   </section>
 
@@ -182,8 +185,8 @@ let falandoAudio = false;
 let enviandoAutomatico = false;
 let tokenMotorista = "";
 
-const CHAVE_CONVERSA = "ronysVanConversaAtivaV6";
-const CHAVE_CONTINUO = "ronysVanModoContinuoV6";
+const CHAVE_CONVERSA = "ronysVanConversaAtivaV62";
+const CHAVE_CONTINUO = "ronysVanModoContinuoV62";
 
 const el = id => document.getElementById(id);
 
@@ -333,6 +336,9 @@ function abrirSala() {
   el("descricaoContinuo").textContent = motorista
     ? "Ative uma vez e fale normalmente. O envio será automático."
     : "Turn it on once and speak naturally. Messages will be sent automatically.";
+  el("avisoAudio").textContent = motorista
+    ? "Sua própria tradução não será reproduzida neste aparelho. Você ouvirá somente a tradução recebida do passageiro."
+    : "Your own translation will not be played on this device. You will hear only the translation received from the driver.";
   el("convite").classList.toggle("hidden", !motorista);
   el("sairBtn").textContent = motorista ? "🛑 Encerrar conversa para todos" : "Sair deste aparelho";
   el("sairBtn").className = motorista ? "perigo" : "secundario";
@@ -400,9 +406,10 @@ async function enviarMensagem(automatico=false) {
     if (!envio.sucesso) throw new Error(envio.mensagem || "Falha ao enviar.");
 
     el("textoReconhecido").value = "";
-    ultimaTraducao = tr.traducao;
-    ultimoIdiomaTraducao = destino === "en" ? "en-US" : "pt-BR";
-    reproduzir(ultimaTraducao, ultimoIdiomaTraducao);
+
+    // Regra V6.2:
+    // a tradução da própria fala é enviada ao outro aparelho,
+    // mas nunca é reproduzida localmente.
     definirStatus(papelAtual === "motorista" ? "Mensagem enviada." : "Message sent.", "sucesso");
   } catch (erro) {
     definirStatus(erro.message, "erro");
@@ -485,12 +492,17 @@ async function buscarMensagens() {
       mostrarMensagem(mensagem);
       ultimoId = Math.max(ultimoId, Number(mensagem.id || 0));
 
-      if (mensagem.papel !== papelAtual) {
+      // O áudio só pode tocar no aparelho receptor.
+      const mensagemRemota = mensagem.papel !== papelAtual;
+
+      if (mensagemRemota) {
         if (reconhecimento) {
           try { reconhecimento.abort(); } catch (_) {}
         }
+
         const textoFalado = mensagem.traducao || mensagem.texto;
-        const idioma = mensagem.destino === "pt" ? "pt-BR" : "en-US";
+        const idioma = papelAtual === "motorista" ? "pt-BR" : "en-US";
+
         ultimaTraducao = textoFalado;
         ultimoIdiomaTraducao = idioma;
         reproduzir(textoFalado, idioma);
@@ -506,15 +518,24 @@ async function buscarMensagens() {
 function mostrarMensagem(mensagem) {
   if (el("msg-" + mensagem.id)) return;
 
+  const propria = mensagem.papel === papelAtual;
   const caixa = document.createElement("div");
   caixa.id = "msg-" + mensagem.id;
-  caixa.className = "mensagem " + (mensagem.papel === papelAtual ? "minha" : "outra");
+  caixa.className = "mensagem " + (propria ? "minha" : "outra");
 
-  const autor = mensagem.papel === "motorista" ? "Motorista" : "Passageiro";
+  const autor = propria
+    ? (papelAtual === "motorista" ? "Você" : "You")
+    : (papelAtual === "motorista" ? "Passageiro — tradução" : "Driver — translation");
+
+  // Quem enviou vê somente sua frase original.
+  // Quem recebeu vê somente a tradução no próprio idioma.
+  const textoVisivel = propria
+    ? (mensagem.texto || "")
+    : (mensagem.traducao || mensagem.texto || "");
+
   caixa.innerHTML =
     "<small>" + escapar(autor) + "</small>" +
-    "<div>" + escapar(mensagem.texto || "") + "</div>" +
-    (mensagem.traducao ? "<div class='traducao'>" + escapar(mensagem.traducao) + "</div>" : "");
+    "<div>" + escapar(textoVisivel) + "</div>";
 
   el("mensagens").appendChild(caixa);
   el("mensagens").scrollTop = el("mensagens").scrollHeight;
@@ -786,7 +807,7 @@ if (salaInicial) {
 }
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=6.2").catch(() => {}));
 }
 </script>
 </body>
