@@ -1,7 +1,7 @@
 {
   "name": "Rony's Van Interpreter",
   "short_name": "Van Interpreter",
-  "description": "Intérprete de voz Português e Inglês com conversação contínua para motorista e passageiro.",
+  "description": "Intérprete de voz com sala permanente, reconexão e QR Code reutilizável até o motorista encerrar.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
