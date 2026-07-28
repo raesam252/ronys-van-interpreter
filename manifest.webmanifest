@@ -1,7 +1,7 @@
 {
   "name": "Rony's Van Interpreter",
-  "short_name": "Van Interpreter",
-  "description": "Intérprete em dois celulares: cada pessoa fala no próprio idioma e somente o outro aparelho reproduz a tradução.",
+  "short_name": "Rony's Interpreter",
+  "description": "Intérprete em dois aparelhos. A tradução é reproduzida somente no aparelho receptor.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
